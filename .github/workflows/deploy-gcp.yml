@@ -1,0 +1,70 @@
+name: Deploy to GCP Compute Engine
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - 'docker-compose.yaml'
+      - '.github/workflows/deploy-gcp.yml'
+
+env:
+  GCP_PROJECT_ID: just-rhythm-482512-q3
+
+jobs:
+  deploy:
+    name: Deploy Docker Compose to GCP VM
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Authenticate to Google Cloud
+        uses: google-github-actions/auth@v2
+        with:
+          credentials_json: ${{ secrets.GCP_SA_KEY }}
+
+      - name: Set up Cloud SDK
+        uses: google-github-actions/setup-gcloud@v2
+        with:
+          project_id: ${{ env.GCP_PROJECT_ID }}
+
+      - name: Configure SSH
+        run: |
+          mkdir -p ~/.ssh
+          ssh-keyscan -H $(gcloud compute instances describe ${{ secrets.GCP_VM_NAME }} \
+            --zone=${{ secrets.GCP_VM_ZONE }} \
+            --format='get(networkInterfaces[0].accessConfigs[0].natIP)') >> ~/.ssh/known_hosts
+
+      - name: Create .env file
+        run: |
+          cat > .env << EOF
+          MYSQL_ROOT_PASSWORD=${{ secrets.MYSQL_ROOT_PASSWORD }}
+          MYSQL_DATABASE=${{ secrets.MYSQL_DATABASE }}
+          MYSQL_USER=${{ secrets.MYSQL_USER }}
+          MYSQL_PASSWORD=${{ secrets.MYSQL_PASSWORD }}
+          DB_PORT=${{ secrets.DB_PORT }}
+          RABBITMQ_USER=${{ secrets.RABBITMQ_USER }}
+          RABBITMQ_PASSWORD=${{ secrets.RABBITMQ_PASSWORD }}
+          RABBITMQ_VHOST=${{ secrets.RABBITMQ_VHOST }}
+          EOF
+
+      - name: Copy files to VM
+        run: |
+          gcloud compute scp docker-compose.yaml ${{ secrets.GCP_VM_NAME }}:~/gamers-infra/ \
+            --zone=${{ secrets.GCP_VM_ZONE }}
+          gcloud compute scp .env ${{ secrets.GCP_VM_NAME }}:~/gamers-infra/ \
+            --zone=${{ secrets.GCP_VM_ZONE }}
+
+      - name: Deploy on VM
+        run: |
+          gcloud compute ssh ${{ secrets.GCP_VM_NAME }} \
+            --zone=${{ secrets.GCP_VM_ZONE }} \
+            --command="cd ~/gamers-infra && bash deploy.sh"
+
+      - name: Verify deployment
+        run: |
+          gcloud compute ssh ${{ secrets.GCP_VM_NAME }} \
+            --zone=${{ secrets.GCP_VM_ZONE }} \
+            --command="cd ~/gamers-infra && docker-compose ps"
