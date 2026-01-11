@@ -22,6 +22,7 @@ services:
       start_period: 30s
     volumes:
       - ./mysql_data:/var/lib/mysql
+      - ./mysql/init:/docker-entrypoint-initdb.d
   redis:
     image: redis:7-alpine
     container_name: gamers-redis
@@ -68,5 +69,6 @@ networks:
     external: true
 
 volumes:
+  mysql_data:
   redis_data:
   rabbitmq_data:

@@ -1,0 +1,22 @@
+# Environment variables
+.env
+
+# MySQL data directory
+mysql_data/
+
+# Docker volumes
+redis_data/
+rabbitmq_data/
+
+# Logs
+*.log
+
+# IDE
+.vscode/
+.idea/
+
+# OS
+.DS_Store
+Thumbs.db
+
+.idea
