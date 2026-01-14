@@ -10,6 +10,7 @@ services:
       MYSQL_DATABASE: ${MYSQL_DATABASE}
       MYSQL_USER: ${MYSQL_USER}
       MYSQL_PASSWORD: ${MYSQL_PASSWORD}
+      TZ: "Asia/Tokyo"
     ports:
       - "${DB_PORT}:3306"
     networks:
@@ -28,6 +29,11 @@ services:
     container_name: gamers-redis
     env_file:
       - .env
+    environment:
+      REDIS_HOST: ${REDIS_HOST}
+      REDIS_DB: ${REDIS_DB}
+      REDIS_PASSWORD: ${REDIS_PASSWORD}
+      TZ: "Asia/Tokyo"
     ports:
       - "6379:6379"
     volumes:
@@ -42,7 +48,7 @@ services:
       - gamers-network
     restart: unless-stopped
   rabbitmq:
-    image: rabbitmq:3.13-management-alpine
+    image: rabbitmq:4.1-management-alpine
     container_name: gamers-rabbitmq
     env_file:
       - .env
@@ -50,6 +56,7 @@ services:
       RABBITMQ_DEFAULT_USER: ${RABBITMQ_USER}
       RABBITMQ_DEFAULT_PASS: ${RABBITMQ_PASSWORD}
       RABBITMQ_DEFAULT_VHOST: ${RABBITMQ_VHOST}
+      TZ: "Asia/Tokyo"
     ports:
       - "5672:5672"
       - "15672:15672"
@@ -61,6 +68,22 @@ services:
       timeout: 5s
       retries: 5
       start_period: 30s
+    networks:
+      - gamers-network
+  web-app:
+    image: ghcr.io/for-gamers/gamers-be:latest
+    container_name: gamers-web-server
+    ports:
+      - "8080:8080"
+    depends_on:
+      - mysql
+      - redis
+      - rabbitmq
+    networks:
+      - gamers-network
+  discord-bot:
+    image: ghcr.io/for-gamers/gamers-bot:latest
+    container_name: gamers-discord-bot
     networks:
       - gamers-network
 

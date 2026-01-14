@@ -6,65 +6,68 @@ on:
       - main
     paths:
       - 'docker-compose.yaml'
+      - 'deploy.sh'
+      - 'mysql/init/**'
       - '.github/workflows/deploy-gcp.yml'
-
-env:
-  GCP_PROJECT_ID: just-rhythm-482512-q3
+  workflow_dispatch:
 
 jobs:
   deploy:
     name: Deploy Docker Compose to GCP VM
     runs-on: ubuntu-latest
+    if: github.event_name == 'push' || github.event_name == 'workflow_dispatch'
 
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
 
-      - name: Authenticate to Google Cloud
-        uses: google-github-actions/auth@v2
-        with:
-          credentials_json: ${{ secrets.GCP_SA_KEY }}
-
-      - name: Set up Cloud SDK
-        uses: google-github-actions/setup-gcloud@v2
-        with:
-          project_id: ${{ env.GCP_PROJECT_ID }}
-
-      - name: Configure SSH
-        run: |
-          mkdir -p ~/.ssh
-          ssh-keyscan -H $(gcloud compute instances describe ${{ secrets.GCP_VM_NAME }} \
-            --zone=${{ secrets.GCP_VM_ZONE }} \
-            --format='get(networkInterfaces[0].accessConfigs[0].natIP)') >> ~/.ssh/known_hosts
-
-      - name: Create .env file
-        run: |
-          cat > .env << EOF
-          MYSQL_ROOT_PASSWORD=${{ secrets.MYSQL_ROOT_PASSWORD }}
-          MYSQL_DATABASE=${{ secrets.MYSQL_DATABASE }}
-          MYSQL_USER=${{ secrets.MYSQL_USER }}
-          MYSQL_PASSWORD=${{ secrets.MYSQL_PASSWORD }}
-          DB_PORT=${{ secrets.DB_PORT }}
-          RABBITMQ_USER=${{ secrets.RABBITMQ_USER }}
-          RABBITMQ_PASSWORD=${{ secrets.RABBITMQ_PASSWORD }}
-          RABBITMQ_VHOST=${{ secrets.RABBITMQ_VHOST }}
-          EOF
-
       - name: Copy files to VM
-        run: |
-          gcloud compute scp docker-compose.yaml ${{ secrets.GCP_VM_NAME }}:~/gamers-infra/ \
-            --zone=${{ secrets.GCP_VM_ZONE }}
-          gcloud compute scp .env ${{ secrets.GCP_VM_NAME }}:~/gamers-infra/ \
-            --zone=${{ secrets.GCP_VM_ZONE }}
+        uses: appleboy/scp-action@v0.1.7
+        with:
+          host: ${{ secrets.GCP_VM_PROD_HOST }}
+          username: ${{ secrets.GCP_VM_PROD_USER }}
+          key: ${{ secrets.GCP_VM_PROD_SSH_KEY }}
+          source: "docker-compose.yaml,deploy.sh,Makefile,mysql/init"
+          target: "~/app"
+          overwrite: true
 
-      - name: Deploy on VM
-        run: |
-          gcloud compute ssh ${{ secrets.GCP_VM_NAME }} \
-            --zone=${{ secrets.GCP_VM_ZONE }} \
-            --command="cd ~/gamers-infra && bash deploy.sh"
+      - name: Create .env and run deploy.sh
+        uses: appleboy/ssh-action@v1.0.3
+        env:
+          DB_ROOT_PASSWORD: ${{ secrets.DB_ROOT_PASSWORD }}
+          DB_DATABASE: ${{ secrets.DB_DATABASE }}
+          DB_USER: ${{ secrets.DB_USER }}
+          DB_PASSWORD: ${{ secrets.DB_PASSWORD }}
+          DB_PORT: ${{ secrets.DB_PORT }}
+          REDIS_HOST: ${{ secrets.REDIS_HOST }}
+          REDIS_PORT: ${{ secrets.REDIS_PORT }}
+          REDIS_PASSWORD: ${{ secrets.REDIS_PASSWORD }}
+          REDIS_DB: ${{ secrets.REDIS_DB }}
+          RABBITMQ_USER: ${{ secrets.RABBITMQ_USER }}
+          RABBITMQ_PASSWORD: ${{ secrets.RABBITMQ_PASSWORD }}
+          RABBITMQ_VHOST: ${{ secrets.RABBITMQ_VHOST }}
+        with:
+          host: ${{ secrets.GCP_VM_PROD_HOST }}
+          username: ${{ secrets.GCP_VM_PROD_USER }}
+          key: ${{ secrets.GCP_VM_PROD_SSH_KEY }}
+          envs: DB_ROOT_PASSWORD,DB_DATABASE,DB_USER,DB_PASSWORD,DB_PORT,REDIS_HOST,REDIS_PORT,REDIS_PASSWORD,REDIS_DB,RABBITMQ_USER,RABBITMQ_PASSWORD,RABBITMQ_VHOST
+          script: |
+            cd ~/app
 
-      - name: Verify deployment
-        run: |
-          gcloud compute ssh ${{ secrets.GCP_VM_NAME }} \
-            --zone=${{ secrets.GCP_VM_ZONE }} \
-            --command="cd ~/gamers-infra && docker-compose ps"
+            # Create .env file on VM
+            echo "MYSQL_ROOT_PASSWORD=${DB_ROOT_PASSWORD}" > .env
+            echo "MYSQL_DATABASE=${DB_DATABASE}" >> .env
+            echo "MYSQL_USER=${DB_USER}" >> .env
+            echo "MYSQL_PASSWORD=${DB_PASSWORD}" >> .env
+            echo "DB_PORT=${DB_PORT}" >> .env
+            echo "REDIS_HOST=${REDIS_HOST}" >> .env
+            echo "REDIS_PORT=${REDIS_PORT}" >> .env
+            echo "REDIS_PASSWORD=${REDIS_PASSWORD}" >> .env
+            echo "REDIS_DB=${REDIS_DB}" >> .env
+            echo "RABBITMQ_USER=${RABBITMQ_USER}" >> .env
+            echo "RABBITMQ_PASSWORD=${RABBITMQ_PASSWORD}" >> .env
+            echo "RABBITMQ_VHOST=${RABBITMQ_VHOST}" >> .env
+
+            # Make deploy.sh executable and run
+            chmod +x deploy.sh
+            ./deploy.sh

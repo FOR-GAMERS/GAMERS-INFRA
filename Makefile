@@ -1,18 +1,19 @@
-.PHONY: up down start stop restart logs ps clean network
+.PHONY: docker-up docker-down start stop restart logs ps clean network docker-test-up docker-test-down
 
 # Docker Compose 파일
 COMPOSE_FILE := docker-compose.yaml
+TEST_DOCKER_FILE := docker-compose-test.yaml
 
 # 네트워크 생성
 network:
 	docker network create gamers-network 2>/dev/null || true
 
 # 모든 서비스 시작 (백그라운드)
-up: network
-	docker compose -f $(COMPOSE_FILE) up -d
+docker-up: network
+	docker compose -p gamers-infra -f $(COMPOSE_FILE) up -d
 
 # 모든 서비스 중지 및 컨테이너 제거
-down:
+docker-down:
 	docker compose -f $(COMPOSE_FILE) down
 
 # 중지된 서비스 시작
@@ -72,6 +73,12 @@ rabbitmq-down:
 
 rabbitmq-logs:
 	docker compose -f $(COMPOSE_FILE) logs -f rabbitmq
+
+docker-test-up: network
+	docker compose -p gamers-infra -f $(TEST_DOCKER_FILE) up -d
+
+docker-test-down:
+	docker compose $(TEST_DOCKER_FILE) down -v
 
 # 도움말
 help:
