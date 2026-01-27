@@ -25,6 +25,16 @@ else
     echo "✅ Docker is already installed"
 fi
 
+# Check if docker compose (V2) is available, install plugin if not
+if ! docker compose version &> /dev/null; then
+    echo "📦 Installing docker-compose-plugin..."
+    sudo apt-get update
+    sudo apt-get install -y docker-compose-plugin
+    echo "✅ docker-compose-plugin installed"
+else
+    echo "✅ docker compose is available"
+fi
+
 # Create Docker network if it doesn't exist
 if ! docker network ls | grep -q gamers-network; then
     echo "🌐 Creating Docker network..."
