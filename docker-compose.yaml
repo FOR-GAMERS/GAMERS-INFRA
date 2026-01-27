@@ -6,10 +6,10 @@ services:
     env_file:
       - .env
     environment:
-      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD}
-      MYSQL_DATABASE: ${MYSQL_DATABASE}
-      MYSQL_USER: ${MYSQL_USER}
-      MYSQL_PASSWORD: ${MYSQL_PASSWORD}
+      MYSQL_ROOT_PASSWORD: ${DB_ROOT_PASSWORD}
+      MYSQL_DATABASE: ${DB_NAME}
+      MYSQL_USER: ${DB_USER}
+      MYSQL_PASSWORD: ${DB_PASSWORD}
       TZ: "Asia/Tokyo"
     ports:
       - "${DB_PORT}:3306"
@@ -73,6 +73,8 @@ services:
   web-app:
     image: ghcr.io/for-gamers/gamers-be:latest
     container_name: gamers-web-server
+    env_file:
+      - .env
     ports:
       - "8080:8080"
     depends_on:
@@ -84,6 +86,8 @@ services:
   discord-bot:
     image: ghcr.io/for-gamers/gamers-bot:latest
     container_name: gamers-discord-bot
+    env_file:
+      - .env
     networks:
       - gamers-network
 

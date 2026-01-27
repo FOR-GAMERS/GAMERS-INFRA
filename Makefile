@@ -78,7 +78,7 @@ docker-test-up: network
 	docker compose -p gamers-infra -f $(TEST_DOCKER_FILE) up -d
 
 docker-test-down:
-	docker compose $(TEST_DOCKER_FILE) down -v
+	docker compose -f $(TEST_DOCKER_FILE) down -v
 
 # 도움말
 help:
